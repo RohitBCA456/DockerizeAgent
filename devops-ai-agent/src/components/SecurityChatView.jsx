@@ -137,7 +137,8 @@ const SecurityChatView = () => {
       <div className="w-1/3 flex flex-col">
         <h2 className="text-2xl font-bold text-white mb-4">Issues Summary</h2>
         <Card className="flex-grow p-4 overflow-y-auto">
-          <article className="prose prose-invert max-w-none">
+          <article className="prose prose-invert max-w-none text-white">
+
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={customRenderers}
@@ -163,7 +164,8 @@ const SecurityChatView = () => {
             </>
           ) : detailedReport ? (
             <div className="w-full h-full overflow-y-auto">
-              <article className="prose prose-invert max-w-none">
+              <article className="prose prose-invert max-w-none text-white">
+
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={customRenderers}

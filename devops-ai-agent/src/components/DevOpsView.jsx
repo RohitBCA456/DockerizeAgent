@@ -240,7 +240,7 @@ const DevOpsView = () => {
                     </div>
                     <div className="flex-grow overflow-y-auto">
                       {selectedFile.path.endsWith(".md") ? (
-                        <article className="prose prose-invert p-4">
+                        <article className="prose prose-invert p-4 text-white">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {selectedFile.content}
                           </ReactMarkdown>
