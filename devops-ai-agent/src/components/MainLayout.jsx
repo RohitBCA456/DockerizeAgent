@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { Github, Shield, MessageSquare, Cog, LogOut, BotMessageSquare } from 'lucide-react';
+import { LogOut, Cog, BotMessageSquare } from 'lucide-react';
 
 const Sidebar = () => {
   const { user, logout } = useContext(AuthContext);
@@ -27,14 +27,6 @@ const Sidebar = () => {
         <NavLink to="/devops" className={navLinkClass}>
           <Cog className="w-5 h-5 mr-4" />
           <span>Generate DevOps</span>
-        </NavLink>
-        <NavLink to="/security-chat" className={navLinkClass}>
-          <Shield className="w-5 h-5 mr-4" />
-          <span>Security Chat</span>
-        </NavLink>
-        <NavLink to="/platform-qa" className={navLinkClass}>
-          <MessageSquare className="w-5 h-5 mr-4" />
-          <span>Platform Q&A</span>
         </NavLink>
       </nav>
       <div className="mt-auto">

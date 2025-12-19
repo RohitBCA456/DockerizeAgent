@@ -6,8 +6,6 @@ import { AuthContext } from './context/AuthContext';
 import Login from './components/Login';
 import MainLayout from './components/MainLayout';
 import DevOpsView from './components/DevOpsView';
-import QAChatView from './components/QAChatView';
-import SecurityChatView from './components/SecurityChatView';
 import Spinner from './components/ui/Spinner';
 
 function App() {
@@ -54,8 +52,6 @@ function App() {
          <Route path="/*" element={<MainLayout />}>
             <Route index element={<DevOpsView />} />
             <Route path="devops" element={<DevOpsView />} />
-            <Route path="security-chat" element={<SecurityChatView />} />
-            <Route path="platform-qa" element={<QAChatView />} />
         </Route>
       )}
     </Routes>

@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+{{#each services}}
+  {{@key}}:
+    build: {{this.path}}
+    container_name: {{@key}}
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+{{/each}}
+
+# Required auxiliary services
+{{#if requiredServices}}
+# Detected: {{requiredServices}}
+{{/if}}

@@ -48,6 +48,7 @@ export function scanRepo(repoPath) {
         path: servicePath,
         entryPoint: pjsonContent.main || "index.js", // Best guess for entry point
         dependencies: Object.keys(pjsonContent.dependencies || {}),
+        port: null,
       };
       console.log(`[SCANNER] Detected Service: '${serviceName}' at ${servicePath}`);
     } catch (e) {
@@ -78,6 +79,17 @@ export function scanRepo(repoPath) {
         if (/^(MONGO|MONGODB|DATABASE)_URI\s*=\s*['"]?mongodb/im.test(content)) metadata.requiredServices.add("MongoDB");
         if (/^(REDIS_URL|REDIS_HOST)/im.test(content)) metadata.requiredServices.add("Redis");
         if (/^(POSTGRES_URL|DATABASE_URL\s*=\s*['"]?postgres)/im.test(content)) metadata.requiredServices.add("PostgreSQL");
+        // Detect port definitions like PORT=3000 or APP_PORT=4000
+        const portMatch = content.match(/(^|\n)\s*(?:PORT|APP_PORT|SERVER_PORT)\s*=\s*(\d{2,5})/i);
+        if (portMatch) {
+          // Attach to the first service that doesn't already have a port
+          for (const svc of Object.values(metadata.services)) {
+            if (!svc.port) {
+              svc.port = parseInt(portMatch[2], 10);
+              break;
+            }
+          }
+        }
     } catch (e) { /* Ignore read errors */ }
   }
 
@@ -87,6 +99,26 @@ export function scanRepo(repoPath) {
     try {
         const content = fs.readFileSync(file, "utf-8");
         if (/mongoose|mongodb(\+srv)?:\/\//i.test(content)) metadata.requiredServices.add("MongoDB");
+        // Try to extract literal ports from app.listen(3000) or app.listen(process.env.PORT || 3000)
+        const listenMatch = content.match(/app\.listen\s*\(\s*(?:process\.env\.(?:PORT|APP_PORT)\s*\|\|\s*)?(\d{2,5})/i);
+        if (listenMatch) {
+          // assign port to the nearest service by path (heuristic)
+          const dir = path.dirname(file);
+          let assigned = false;
+          for (const svc of Object.values(metadata.services)) {
+            if (!svc.port && dir.startsWith(svc.path)) {
+              svc.port = parseInt(listenMatch[1], 10);
+              assigned = true;
+              break;
+            }
+          }
+          if (!assigned) {
+            // fallback: assign to first service without a port
+            for (const svc of Object.values(metadata.services)) {
+              if (!svc.port) { svc.port = parseInt(listenMatch[1], 10); break; }
+            }
+          }
+        }
     } catch (e) { /* Ignore read errors */ }
   }
   

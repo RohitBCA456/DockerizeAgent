@@ -95,24 +95,30 @@ const SecurityChatView = () => {
     setLoading(true);
     setError(null);
     try {
-      const detailedQuestion =
-        "Please provide a detailed, file-by-file analysis of every issue in the report. For each issue, include a clear explanation of the vulnerability and a code snippet showing the exact fix.";
+      const response = await api.getSecurityDetails(repoPath);
+      // Merge the deterministic details into a markdown-like summary
+      const parts = [];
+      if (response.securityReport) parts.push(response.securityReport);
+      if (response.envSecrets && response.envSecrets.length) {
+        parts.push('\n\n## Suspicious .env entries found:');
+        response.envSecrets.forEach(s => {
+          parts.push(`- ${s.path}`);
+          s.suspicious.forEach(line => parts.push(`  - ${line}`));
+        });
+      }
+      if (response.patternIssues && response.patternIssues.length) {
+        parts.push('\n\n## Code Pattern Issues:');
+        response.patternIssues.forEach(p => parts.push(`- ${p.path}: ${p.issue}`));
+      }
 
-      const response = await api.chatWithSecurityReport(
-        repoPath,
-        detailedQuestion
-      );
+      const newDetailedReport = parts.join('\n\n') || 'No additional issues found.';
+      setDetailedReport(newDetailedReport);
 
-      const newDetailedReport = response.recommendations;
-      setDetailedReport(newDetailedReport); // Update state to show the new report immediately
-
-      // ✅ SAVE: Save the generated detailed report to sessionStorage for persistence
+      // Save updated detailed report to sessionStorage
       const savedResultString = sessionStorage.getItem("devopsResult");
       if (savedResultString) {
         const lastResult = JSON.parse(savedResultString);
-        // Add the detailed report to the object
         lastResult.generatedContent.detailedSecurityReport = newDetailedReport;
-        // Save the updated object back to sessionStorage
         sessionStorage.setItem("devopsResult", JSON.stringify(lastResult));
       }
     } catch (err) {
@@ -147,6 +153,12 @@ const SecurityChatView = () => {
             </ReactMarkdown>
           </article>
         </Card>
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-sm text-gray-300">Quick Stats:</div>
+          <div className="flex items-center gap-2">
+            <div className="bg-red-600 text-white px-2 py-1 rounded-md text-sm">Env Secrets: { (sessionStorage.getItem('devopsResult') && (() => { try { const s = JSON.parse(sessionStorage.getItem('devopsResult')); return (s.generatedContent && s.generatedContent.detailedSecurityReport) ? (s.generatedContent.detailedSecurityReport.match(/Suspicious/g) || []).length : 0 } catch(e){return 0} })()) }</div>
+          </div>
+        </div>
       </div>
 
       {/* Right Panel: The Detailed Analysis Area */}

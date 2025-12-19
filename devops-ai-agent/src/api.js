@@ -54,22 +54,14 @@ export const api = {
       const response = await apiClient.get("/api/chat-history");
       return response.data;
     } catch (error) {
-      throw new Error(
-        error.response?.data?.error || "Failed to fetch chat history."
-      );
+      // Chat/history endpoints are not supported in deterministic mode
+      throw new Error(error.response?.data?.error || "Chat endpoints are disabled in deterministic mode.");
     }
   },
 
   // ✅ NEW: Sends a question to the primary DevOps chatbot with history support.
   askDevopsBot: async (question) => {
-    try {
-      const response = await apiClient.post("/devops-chatbot", { question });
-      return response.data;
-    } catch (error) {
-      throw new Error(
-        error.response?.data?.details || "Failed to get an answer from the bot."
-      );
-    }
+    throw new Error("LLM-based DevOps bot is disabled. Use the generated files and security report instead.");
   },
 
   // ❌ REMOVED: This function is obsolete and replaced by askDevopsBot.
@@ -90,9 +82,7 @@ export const api = {
       // This correctly returns the { recommendations: "..." } object to the component
       return response.data;
     } catch (error) {
-      throw new Error(
-        error.response?.data?.details || "Failed to chat about security."
-      );
+      throw new Error(error.response?.data?.details || "Chat about security is disabled in deterministic mode.");
     }
   },
 
@@ -102,17 +92,7 @@ export const api = {
    * @param {string} question The user's general DevOps question.
    */
   chatWithDevops: async (repoPath, question) => {
-    try {
-      const response = await apiClient.post("/chat-devops", {
-        repoPath,
-        question,
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error(
-        error.response?.data?.details || "Failed to chat about DevOps."
-      );
-    }
+    throw new Error("LLM-based chat endpoints are disabled in deterministic mode.");
   },
 
   /**
@@ -121,4 +101,50 @@ export const api = {
   getLastDevopsResult: () => {
     return lastDevopsResult;
   },
+  /**
+   * Web search using headless Chrome (puppeteer) driven on the backend.
+   * Returns { query, results: [{title,snippet,href}, ...] }
+   */
+  searchWeb: async (query) => {
+    try {
+      const response = await apiClient.post('/search-web', { query });
+      return response.data;
+    } catch (err) {
+      throw new Error(err.response?.data?.error || 'Search failed');
+    }
+  },
+
+  /**
+   * Get security details (deterministic) for a repo path.
+   */
+  getSecurityDetails: async (repoPath) => {
+    try {
+      const response = await apiClient.post('/security-details', { repoPath });
+      return response.data;
+    } catch (err) {
+      throw new Error(err.response?.data?.error || 'Failed to get security details');
+    }
+  }
+  ,
+  preflight: async (repoPath) => {
+    try {
+      // support optional second parameter for options
+      const response = await apiClient.post('/preflight', { repoPath });
+      return response.data;
+    } catch (err) {
+      throw new Error(err.response?.data?.error || 'Preflight failed');
+    }
+  },
+
+  /**
+   * Get the architecture diagram (Mermaid.js code) for a repository.
+   */
+  getArchitectureMap: async (repoPath) => {
+    try {
+      const response = await apiClient.post('/architecture-map', { repoPath });
+      return response.data;
+    } catch (err) {
+      throw new Error(err.response?.data?.error || 'Failed to generate architecture map');
+    }
+  }
 };

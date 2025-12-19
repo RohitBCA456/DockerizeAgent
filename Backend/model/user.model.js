@@ -1,5 +1,5 @@
 // models/User.js
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
   googleId: {
@@ -15,11 +15,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  image: String,
+  image: { type: String },
   createdAt: {
     type: Date,
     default: Date.now,
   },
 });
 
-export const User = mongoose.model('User', userSchema);
+export const User = mongoose.model("User", userSchema);

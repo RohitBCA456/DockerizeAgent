@@ -196,15 +196,18 @@ const QAChatView = () => {
     setLoading(true);
 
     try {
-      const data = await api.askDevopsBot(question);
-      const aiMessage = { role: 'ai', content: data.response };
-      updateSessions(aiMessage); // Add AI's message
+      // Use the Chrome-driven web search for any query
+      const resp = await api.searchWeb(question);
+      let text = 'No results found.';
+      if (resp && Array.isArray(resp.results) && resp.results.length) {
+        const r = resp.results[0];
+        text = r.snippet ? `${r.snippet}\n\n${r.href || ''}` : `${r.title || r.href}`;
+      }
+      const aiMessage = { role: 'ai', content: text };
+      updateSessions(aiMessage);
     } catch (err) {
-      const errorMessage = { 
-        role: 'ai', 
-        content: `Sorry, an error occurred: ${err.message || 'Please try again.'}` 
-      };
-      updateSessions(errorMessage); // Add error message
+      const errorMessage = { role: 'ai', content: `Search failed: ${err.message || 'Please try again.'}` };
+      updateSessions(errorMessage);
     } finally {
       setLoading(false);
     }
