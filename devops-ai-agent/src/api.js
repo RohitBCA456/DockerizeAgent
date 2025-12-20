@@ -72,19 +72,7 @@ export const api = {
    * @param {string} repoPath The path to the repository.
    * @param {string} question The user's question about the report.
    */
-  // This function in your api.js file is correct. No changes needed here.
-  chatWithSecurityReport: async (repoPath, question) => {
-    try {
-      const response = await apiClient.post("/chat-security-report", {
-        repoPath,
-        question,
-      });
-      // This correctly returns the { recommendations: "..." } object to the component
-      return response.data;
-    } catch (error) {
-      throw new Error(error.response?.data?.details || "Chat about security is disabled in deterministic mode.");
-    }
-  },
+  // chatWithSecurityReport removed because detailed security report is no longer generated
 
   /**
    * Sends a question to the general DevOps chatbot.
@@ -126,13 +114,21 @@ export const api = {
     }
   }
   ,
-  preflight: async (repoPath) => {
+  quickHealth: async (repoPath) => {
     try {
-      // support optional second parameter for options
-      const response = await apiClient.post('/preflight', { repoPath });
+      const response = await apiClient.post('/quick-health', { repoPath });
       return response.data;
     } catch (err) {
-      throw new Error(err.response?.data?.error || 'Preflight failed');
+      throw new Error(err.response?.data?.error || 'Quick health failed');
+    }
+  },
+
+  riskSearch: async (repoPath, query) => {
+    try {
+      const response = await apiClient.post('/risk-search', { repoPath, query });
+      return response.data;
+    } catch (err) {
+      throw new Error(err.response?.data?.error || 'Risk search failed');
     }
   },
 
@@ -145,6 +141,24 @@ export const api = {
       return response.data;
     } catch (err) {
       throw new Error(err.response?.data?.error || 'Failed to generate architecture map');
+    }
+  }
+  ,
+  getThreatModel: async (repoPath) => {
+    try {
+      const response = await apiClient.post('/threat-model', { repoPath });
+      // Expect { markdown, totals: { critical, high }}
+      return response.data;
+    } catch (err) {
+      throw new Error(err.response?.data?.error || 'Failed to generate threat model');
+    }
+  },
+  getDisasterRecoveryPlan: async (repoPath) => {
+    try {
+      const response = await apiClient.post('/disaster-recovery', { repoPath });
+      return response.data;
+    } catch (err) {
+      throw new Error(err.response?.data?.error || 'Failed to generate disaster recovery plan');
     }
   }
 };

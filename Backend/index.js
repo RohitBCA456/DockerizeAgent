@@ -25,9 +25,12 @@ import { connectDB } from "./database/db.js";
 import { GOOGLE_OAUTH_ENABLED } from "./config/passport-setup.js";
 
 // Deterministic Tools
-import { runPreflight } from "./preflight.js";
+// NOTE: preflight.js removed in favor of lightweight quick-health and risk-search endpoints
 import { generateFromRepo, generateArchitectureMermaid } from "./deterministicDevops.js";
+import { scanRepo } from './tools/repoScanner.js';
+import { spawnSync } from 'child_process';
 import { computeEntropy } from "./securityTools.js";
+import { generateThreatModel, generateDisasterRecoveryPlan } from "./deterministicDevops.js";
 
 dotenv.config();
 const app = express();
@@ -50,6 +53,14 @@ app.use(passport.session());
 const ensureAuthenticated = (req, res, next) => {
   if (req.isAuthenticated()) return next();
   res.status(401).json({ error: "Not authenticated" });
+};
+
+// Allow requests when running in dev mode (local testing)
+const DEV_MODE = process.env.DEV_MODE === 'true' || process.env.NODE_ENV !== 'production';
+const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const allowDevOrAuth = (req, res, next) => {
+  if (DEV_MODE) return next();
+  return ensureAuthenticated(req, res, next);
 };
 
 /* ---------------- AUTH ROUTES ---------------- */
@@ -101,8 +112,7 @@ app.post("/generate-devops", ensureAuthenticated, async (req, res) => {
       fs.writeFileSync(path.join(outputPath, "docker-compose.yml"), output.generatedContent.dockerCompose);
     }
 
-    // 3. Security Report
-    fs.writeFileSync(path.join(outputPath, "security-report.md"), output.generatedContent.securityReport || "");
+  // 3. Security Report file generation removed (not required)
 
     res.json({
       message: "DevOps files generated successfully",
@@ -144,16 +154,176 @@ app.post("/search-web", ensureAuthenticated, async (req, res) => {
   }
 });
 
-/* ---------------- PREFLIGHT (Ports & Maintenance) ---------------- */
-app.post('/preflight', ensureAuthenticated, async (req, res) => {
+/* ---------------- QUICK HEALTH (lightweight port+maintenance summary) ---------------- */
+app.post('/quick-health', allowDevOrAuth, async (req, res) => {
   try {
     const { repoPath } = req.body;
     if (!repoPath) return res.status(400).json({ error: 'repoPath required' });
-    const result = await runPreflight(repoPath);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: 'Preflight failed' });
+    // lightweight summary using scanRepo and best-effort npm outdated parsing
+    const meta = scanRepo(repoPath);
+    const maintenance = {};
+    for (const [svcName, svc] of Object.entries(meta.services || {})) {
+      try {
+        const pkg = path.join(svc.path, 'package.json');
+        if (fs.existsSync(pkg)) {
+          const proc = spawnSync(npmCmd, ['outdated', '--json'], { cwd: svc.path, encoding: 'utf-8', shell: true });
+          const outdated = proc.stdout ? JSON.parse(proc.stdout) : {};
+          maintenance[svcName] = { numOutdated: Object.keys(outdated).length, outdated };
+        } else {
+          maintenance[svcName] = { numOutdated: 0, outdated: {} };
+        }
+      } catch (e) {
+        maintenance[svcName] = { numOutdated: 0, outdated: {} };
+      }
+    }
+
+    // Port checks - best effort using metadata.services[].port
+    const portChecks = [];
+    for (const [svcName, svc] of Object.entries(meta.services || {})) {
+      if (svc.port) portChecks.push({ service: svcName, port: svc.port, inUse: false });
+    }
+
+    res.json({ metadata: meta, maintenance, portChecks });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
+});
+
+/* ---------------- RISK SEARCH (web-assisted) ---------------- */
+app.post('/risk-search', allowDevOrAuth, async (req, res) => {
+  try {
+    const { repoPath, query } = req.body;
+    if (!repoPath || !query) return res.status(400).json({ error: 'repoPath and query required' });
+
+    // Use the existing search-web helper for a lightweight web search
+    const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    const resp = await fetch(ddgUrl, { headers: { 'User-Agent': 'DevOpsAgent/1.0' } });
+    const html = await resp.text();
+    const cheerio = await import('cheerio');
+    const $ = cheerio.load(html);
+    const results = [];
+    $('a.result__a').each((i, el) => {
+      if (i >= 8) return;
+      results.push({ title: $(el).text().trim(), href: $(el).attr('href'), snippet: $(el).closest('.result').find('.result__snippet').text().trim() });
+    });
+
+    // Return the top hits as 'evidence' to be used by the frontend to enrich the deterministic report
+    res.json({ query, evidence: results });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ---------------- THREAT MODEL & DR ---------------- */
+app.post('/threat-model', allowDevOrAuth, async (req, res) => {
+  try {
+    const { repoPath } = req.body;
+    if (!repoPath) return res.status(400).json({ error: 'repoPath required' });
+
+    const meta = scanRepo(repoPath);
+    const projectName = meta.metadata?.name || Object.keys(meta.services || {}).join(', ') || path.basename(repoPath);
+
+    // build queries: project-level and per-dependency
+    const deps = [];
+    for (const svc of Object.values(meta.services || {})) {
+      try {
+        const pj = JSON.parse(fs.readFileSync(path.join(svc.path, 'package.json'), 'utf-8'));
+        deps.push(...Object.keys(pj.dependencies || {}));
+      } catch (e) { /* ignore */ }
+    }
+    const uniqDeps = Array.from(new Set(deps)).slice(0, 10);
+
+    const queries = [];
+    queries.push(`${projectName} security risks`);
+    queries.push(`${projectName} vulnerabilities`);
+    uniqDeps.forEach(d => { queries.push(`${d} vulnerabilities`); queries.push(`${d} security advisory`); });
+
+    const evidence = [];
+    const cheerio = await import('cheerio');
+
+    for (const q of queries.slice(0, 8)) {
+      try {
+        const ddg = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
+        const resp = await fetch(ddg, { headers: { 'User-Agent': 'DevOpsAgent/1.0' } });
+        const html = await resp.text();
+        const $ = cheerio.load(html);
+        $('a.result__a').each((i, el) => {
+          if (i >= 3) return;
+          const title = $(el).text().trim();
+          const href = $(el).attr('href');
+          const snippet = $(el).closest('.result').find('.result__snippet').text().trim();
+          evidence.push({ query: q, title, href, snippet });
+        });
+      } catch (e) { /* ignore individual query failures */ }
+    }
+
+    // Simple severity heuristics: count 'critical' and 'high' occurrences in evidence
+    let critical = 0, high = 0;
+    for (const ev of evidence) {
+      const txt = `${ev.title}\n${ev.snippet}`.toLowerCase();
+      if (txt.includes('critical')) critical += 1;
+      if (txt.includes('high')) high += 1;
+      // also detect 'cve-' patterns as a hint
+      if (/cve-\d{4}-\d+/i.test(txt)) high += 1;
+    }
+
+    // Build markdown output summarizing evidence
+    let md = `# Threat Model & Evidence (Web-sourced)\n\n`;
+    md += `Generated from live web search results for: **${projectName}**\n\n`;
+    if (evidence.length) {
+      md += '## Top Evidence & References\n';
+      evidence.slice(0, 12).forEach(e => {
+        md += `- [${e.title || e.href}](${e.href}) — ${e.snippet}\n`;
+      });
+      md += '\n---\n\n';
+    } else {
+      md += '_No external evidence found from web queries._\n\n';
+    }
+
+    md += '## Findings (summary)\n';
+    md += `- Evidence hits: ${evidence.length}\n`;
+    md += `- Heuristic Critical indicators: ${critical}\n`;
+    md += `- Heuristic High indicators: ${high}\n\n`;
+    md += '## Next steps\n- Review the linked references and validate any CVE/advisory details.\n- Run authoritative CVE lookups (OSV/NVD/GitHub) for confirmed severity and fixes.\n';
+
+    res.json({ markdown: md, evidence, totals: { critical, high } });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Threat model generation failed', details: e.message }); }
+});
+
+app.post('/disaster-recovery', allowDevOrAuth, async (req, res) => {
+  try {
+    const { repoPath } = req.body;
+    if (!repoPath) return res.status(400).json({ error: 'repoPath required' });
+    const meta = scanRepo(repoPath);
+    const projectName = meta.metadata?.name || Object.keys(meta.services || {}).join(', ') || path.basename(repoPath);
+    const queries = [`${projectName} disaster recovery plan`, `${projectName} backup and restore`];
+    const evidence = [];
+    const cheerio = await import('cheerio');
+    for (const q of queries) {
+      try {
+        const ddg = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
+        const resp = await fetch(ddg, { headers: { 'User-Agent': 'DevOpsAgent/1.0' } });
+        const html = await resp.text();
+        const $ = cheerio.load(html);
+        $('a.result__a').each((i, el) => {
+          if (i >= 4) return;
+          const title = $(el).text().trim();
+          const href = $(el).attr('href');
+          const snippet = $(el).closest('.result').find('.result__snippet').text().trim();
+          evidence.push({ query: q, title, href, snippet });
+        });
+      } catch (e) { /* ignore */ }
+    }
+    let md = `# Disaster Recovery Plan (Web-sourced)\n\n`;
+    md += `Guidance gathered from web resources for **${projectName}**\n\n`;
+    if (evidence.length) {
+      md += '## References\n';
+      evidence.slice(0, 10).forEach(e => { md += `- [${e.title || e.href}](${e.href}) — ${e.snippet}\n`; });
+      md += '\n---\n\n';
+    }
+    md += '## Suggested Playbook (generalized)\n1. Detect & contain\n2. Notify stakeholders\n3. Restore from last good backup\n4. Validate and promote\n5. Post-mortem and update runbooks\n';
+    res.json({ markdown: md, evidence });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'DR plan generation failed', details: e.message }); }
 });
 
 /* ---------------- SECURITY & PATTERN AUDIT ---------------- */

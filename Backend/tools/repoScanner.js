@@ -57,16 +57,33 @@ export function scanRepo(repoPath) {
   }
 
   // --- 2. Check Dependencies for Required Auxiliary Services ---
-  // Now we iterate through the services we just found
+  // Broaden checks to look at devDependencies too and multiple common package names.
+  const serviceSignatures = [
+    { name: 'MongoDB', matches: ['mongoose', 'mongodb'] },
+    { name: 'Redis', matches: ['redis', 'ioredis', 'connect-redis'] },
+    { name: 'PostgreSQL', matches: ['pg', 'pg-native', 'pg-promise'] },
+    { name: 'MySQL', matches: ['mysql', 'mysql2'] },
+    { name: 'RabbitMQ', matches: ['amqplib', 'amqp', 'rascal'] },
+    { name: 'Kafka', matches: ['kafka-node', 'kafkajs', 'node-rdkafka'] },
+    { name: 'Elasticsearch', matches: ['elasticsearch', '@elastic/elasticsearch'] },
+    { name: 'Memcached', matches: ['memcached'] },
+  ];
+
   for (const service of Object.values(metadata.services)) {
-    if (service.dependencies.some(dep => ['mongoose', 'mongodb'].includes(dep))) {
-      metadata.requiredServices.add("MongoDB");
-    }
-    if (service.dependencies.some(dep => ['redis', 'ioredis'].includes(dep))) {
-      metadata.requiredServices.add("Redis");
-    }
-    if (service.dependencies.includes('pg')) {
-      metadata.requiredServices.add("PostgreSQL");
+    // gather deps and devDeps from package.json
+    let deps = (service.dependencies || []).slice();
+    try {
+      const pjsonPath = path.join(service.path, 'package.json');
+      if (fs.existsSync(pjsonPath)) {
+        const pj = JSON.parse(fs.readFileSync(pjsonPath, 'utf-8'));
+        deps = deps.concat(Object.keys(pj.devDependencies || {}));
+      }
+    } catch (e) { /* ignore */ }
+
+    for (const sig of serviceSignatures) {
+      if (deps.some(d => sig.matches.some(m => d && d.toLowerCase().includes(m)))) {
+        metadata.requiredServices.add(sig.name);
+      }
     }
   }
 
@@ -76,9 +93,12 @@ export function scanRepo(repoPath) {
   for (const file of envFiles) {
     try {
         const content = fs.readFileSync(file, "utf-8");
-        if (/^(MONGO|MONGODB|DATABASE)_URI\s*=\s*['"]?mongodb/im.test(content)) metadata.requiredServices.add("MongoDB");
-        if (/^(REDIS_URL|REDIS_HOST)/im.test(content)) metadata.requiredServices.add("Redis");
-        if (/^(POSTGRES_URL|DATABASE_URL\s*=\s*['"]?postgres)/im.test(content)) metadata.requiredServices.add("PostgreSQL");
+  // env-based hints for common services
+  if (/mongodb(?:\+srv)?:\/\//i.test(content) || /^(MONGO|MONGODB|DATABASE)_?URI\s*=\s*/im.test(content)) metadata.requiredServices.add("MongoDB");
+  if (/redis:\/\//i.test(content) || /^(REDIS(_URL|_HOST|_PORT)?)/im.test(content)) metadata.requiredServices.add("Redis");
+  if (/postgres(?:ql)?:\/\//i.test(content) || /(POSTGRES|POSTGRESQL|DATABASE)_?URL|DATABASE_URL/i.test(content)) metadata.requiredServices.add("PostgreSQL");
+  if (/mysql:\/\//i.test(content) || /^(MYSQL|MYSQL2|DATABASE)_?URL/i.test(content)) metadata.requiredServices.add("MySQL");
+  if (/amqp:\/\//i.test(content) || /RABBITMQ|AMQP(_URL)?/i.test(content)) metadata.requiredServices.add("RabbitMQ");
         // Detect port definitions like PORT=3000 or APP_PORT=4000
         const portMatch = content.match(/(^|\n)\s*(?:PORT|APP_PORT|SERVER_PORT)\s*=\s*(\d{2,5})/i);
         if (portMatch) {
@@ -98,7 +118,14 @@ export function scanRepo(repoPath) {
   for (const file of jsFiles) {
     try {
         const content = fs.readFileSync(file, "utf-8");
-        if (/mongoose|mongodb(\+srv)?:\/\//i.test(content)) metadata.requiredServices.add("MongoDB");
+  // connection string and SDK usage hints
+  if (/mongodb(?:\+srv)?:\/\//i.test(content) || /\bmongoose\b/i.test(content)) metadata.requiredServices.add("MongoDB");
+  if (/redis:\/\//i.test(content) || /\bioredis\b|\bredis\b/i.test(content)) metadata.requiredServices.add("Redis");
+  if (/postgres(?:ql)?:\/\//i.test(content) || /\bpg\b|\bpg-promise\b/i.test(content)) metadata.requiredServices.add("PostgreSQL");
+  if (/mysql:\/\//i.test(content) || /\bmysql2?\b/i.test(content)) metadata.requiredServices.add("MySQL");
+  if (/amqp:\/\//i.test(content) || /\bamqplib\b|\brabbitmq\b/i.test(content)) metadata.requiredServices.add("RabbitMQ");
+  if (/kafka:\/\//i.test(content) || /\bkafka-node\b|\bkafkajs\b/i.test(content)) metadata.requiredServices.add("Kafka");
+  if (/elastic(?:search)?/i.test(content) || /\belasticsearch\b/i.test(content)) metadata.requiredServices.add("Elasticsearch");
         // Try to extract literal ports from app.listen(3000) or app.listen(process.env.PORT || 3000)
         const listenMatch = content.match(/app\.listen\s*\(\s*(?:process\.env\.(?:PORT|APP_PORT)\s*\|\|\s*)?(\d{2,5})/i);
         if (listenMatch) {

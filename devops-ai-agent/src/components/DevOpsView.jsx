@@ -5,6 +5,8 @@ import Card from "./ui/Card";
 import Spinner from "./ui/Spinner";
 import FileTree from "./FileTree";
 import CodeBlock from "./ui/CodeBlock";
+import ActionButtons from "../components/ActionButtons";
+import ReportCard from "../components/ReportCard";
 import { UploadCloud, XCircle, FileCode2, Zap, Copy, Check, Layers, Cpu } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -120,8 +122,7 @@ const transformContentToFlatMap = (content, repoPath, metadata) => {
       });
     });
   }
-  if (content.securityReport)
-    allFiles["infra/security-report.md"] = content.securityReport;
+  // security report is no longer generated
   return allFiles;
 };
 
@@ -184,11 +185,13 @@ const DevOpsView = () => {
     }
 
     const pathToGenerate = repoPath;
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setSelectedFile(null);
-    setMermaidCode(null);
+  setLoading(true);
+  setError(null);
+  setResult(null);
+  setSelectedFile(null);
+  setMermaidCode(null);
+  setThreatModelMd(null);
+  setDrPlanMd(null);
 
     try {
       // Generate DevOps files
@@ -230,6 +233,39 @@ const DevOpsView = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const [threatModelMd, setThreatModelMd] = useState(null);
+  const [drPlanMd, setDrPlanMd] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [threatTotals, setThreatTotals] = useState({ critical: 0, high: 0 });
+
+  const handleThreatModel = async () => {
+    if (!repoPath && !result?.sourceRepoPath) { setError('Select repository first'); return; }
+    const pathToUse = repoPath || result.sourceRepoPath;
+    setReportLoading(true);
+    try {
+      const resp = await api.getThreatModel(pathToUse);
+      setThreatModelMd(resp.markdown || '');
+      setThreatTotals(resp.totals || { critical: 0, high: 0 });
+      setDrPlanMd(null);
+      setActiveTab('metadata');
+    } catch (e) { setError(e.message); }
+    setReportLoading(false);
+  };
+
+  const handleDRPlan = async () => {
+    if (!repoPath && !result?.sourceRepoPath) { setError('Select repository first'); return; }
+    const pathToUse = repoPath || result.sourceRepoPath;
+    setReportLoading(true);
+    try {
+      const resp = await api.getDisasterRecoveryPlan(pathToUse);
+      setDrPlanMd(resp.markdown || '');
+      setThreatModelMd(null);
+      setThreatTotals(resp.totals || { critical: 0, high: 0 });
+      setActiveTab('metadata');
+    } catch (e) { setError(e.message); }
+    setReportLoading(false);
   };
 
   const getFileLanguage = (fileName = "") => {
@@ -283,6 +319,7 @@ const DevOpsView = () => {
             {loading ? <Spinner size="sm" /> : <Zap className="w-5 h-5 mr-2" />}
             Generate
           </Button>
+          <ActionButtons onThreat={handleThreatModel} onDR={handleDRPlan} loading={reportLoading || loading} />
         </div>
         {error && (
           <p className="text-red-400 mt-4 flex items-center text-sm">
@@ -396,6 +433,15 @@ const DevOpsView = () => {
           {/* TAB: Metadata & Details */}
           {activeTab === "metadata" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                 {/* Quick vulnerability totals */}
+                <div className="lg:col-span-2">
+                  <div className="flex items-center space-x-4 mb-4">
+                    <div className="px-3 py-2 bg-red-600 rounded text-white font-bold">{threatTotals.critical}</div>
+                    <div className="text-sm text-gray-300">Critical vulnerabilities</div>
+                    <div className="px-3 py-2 bg-yellow-500 rounded text-black font-bold">{threatTotals.high}</div>
+                    <div className="text-sm text-gray-300">High vulnerabilities</div>
+                  </div>
+                </div>
               {/* Services Info */}
               <Card className="p-6">
                 <h3 className="text-lg font-bold text-white mb-4">Detected Services</h3>
@@ -474,6 +520,12 @@ const DevOpsView = () => {
                   <p className="text-gray-400">No infrastructure data available</p>
                 )}
               </Card>
+              {/* Reports: Threat Model, DR and Security Report */}
+              <div className="lg:col-span-2 space-y-4">
+                {/* Security report generation removed */}
+                <ReportCard title="Threat Model & Risk Report" markdown={threatModelMd} />
+                <ReportCard title="Failure & Recovery Plan" markdown={drPlanMd} />
+              </div>
             </div>
           )}
         </div>

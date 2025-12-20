@@ -6,6 +6,7 @@ import { AuthContext } from './context/AuthContext';
 import Login from './components/Login';
 import MainLayout from './components/MainLayout';
 import DevOpsView from './components/DevOpsView';
+import ExtrasView from './components/ExtrasView';
 import Spinner from './components/ui/Spinner';
 
 function App() {
@@ -49,10 +50,11 @@ function App() {
       
       {/* Protect the main layout. If there's no user, it will be redirected. */}
       {user && (
-         <Route path="/*" element={<MainLayout />}>
-            <Route index element={<DevOpsView />} />
-            <Route path="devops" element={<DevOpsView />} />
-        </Route>
+     <Route path="/*" element={<MainLayout />}>
+      <Route index element={<DevOpsView />} />
+      <Route path="devops" element={<DevOpsView />} />
+      <Route path="extras" element={<ExtrasView />} />
+    </Route>
       )}
     </Routes>
   );

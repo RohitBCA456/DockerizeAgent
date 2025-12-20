@@ -21,8 +21,9 @@ function isPortInUse(port) {
 }
 
 export async function runPreflight(repoPath, options = { runGitleaks: false, runSBOM: true }) {
-  const metadata = scanRepo(repoPath);
-  const results = { portChecks: [], audits: {}, maintenance: {} };
+  try {
+    const metadata = scanRepo(repoPath);
+    const results = { portChecks: [], audits: {}, maintenance: {} };
 
   // 1. Port Detection & Check
   const guessedPorts = new Set();
@@ -68,6 +69,16 @@ export async function runPreflight(repoPath, options = { runGitleaks: false, run
     }
   }
 
-  if (options.runSBOM) result.sbom = generateSBOM(repoPath, path.join(repoPath, 'infra'));
-  return results;
+    if (options.runSBOM) {
+      try {
+        results.sbom = generateSBOM(repoPath, path.join(repoPath, 'infra'));
+      } catch (e) {
+        results.sbom = { success: false, error: e.message };
+      }
+    }
+    return results;
+  } catch (e) {
+    console.error('Preflight failed:', e);
+    return { error: e.message || 'preflight_failed', details: e.stack };
+  }
 }

@@ -28,6 +28,10 @@ const Sidebar = () => {
           <Cog className="w-5 h-5 mr-4" />
           <span>Generate DevOps</span>
         </NavLink>
+        <NavLink to="/extras" className={navLinkClass}>
+          <BotMessageSquare className="w-5 h-5 mr-4" />
+          <span>Extras</span>
+        </NavLink>
       </nav>
       <div className="mt-auto">
          {user && (
