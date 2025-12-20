@@ -14,10 +14,10 @@ const ExtrasView = () => {
     setExporting(true);
     setMsg(null);
     try {
-      const resp = await api.generateDevops(repoPath); // this will create infra files
-      setMsg('✅ Reports and infra files generated into infra/');
+      const resp = await api.generateDevops(repoPath); 
+      setMsg('Reports and infra files generated into infra/');
     } catch (e) {
-      setMsg(`❌ ${e.message}`);
+      setMsg(`${e.message}`);
     }
     setExporting(false);
   };

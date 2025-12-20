@@ -11,7 +11,6 @@ import { UploadCloud, XCircle, FileCode2, Zap, Copy, Check, Layers, Cpu } from "
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-// Mermaid diagram component
 const MermaidDiagram = ({ mermaidCode }) => {
   const [svgContent, setSvgContent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,12 +19,10 @@ const MermaidDiagram = ({ mermaidCode }) => {
   useEffect(() => {
     const loadMermaid = async () => {
       try {
-        // Try to load ESM build first (improves compatibility with Vite)
         let mermaidModule;
         try {
           mermaidModule = await import("mermaid/dist/mermaid.esm.min.mjs");
         } catch (e) {
-          // Fallback to package entry
           mermaidModule = await import("mermaid");
         }
 
@@ -34,7 +31,6 @@ const MermaidDiagram = ({ mermaidCode }) => {
 
         mermaid.initialize({ startOnLoad: true, theme: "dark" });
 
-        // mermaid.render can return svg string or an object depending on build
         const code = mermaidCode && mermaidCode.trim() ? mermaidCode : "graph TD; Client-->Server; Server-->DB;";
         const renderResult = await mermaid.render(renderId, code);
         let svg = null;
@@ -43,7 +39,6 @@ const MermaidDiagram = ({ mermaidCode }) => {
           svg = renderResult.svg || renderResult?.dom?.innerHTML || null;
         }
         if (!svg && typeof mermaid.getSVG === 'function') {
-          // some builds expose getSVG
           try { svg = mermaid.getSVG(renderId); } catch(e) { /* ignore */ }
         }
         setSvgContent(svg || null);
@@ -74,7 +69,6 @@ const MermaidDiagram = ({ mermaidCode }) => {
   );
 };
 
-// Copy button utility
 const CopyButton = ({ text }) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
@@ -122,7 +116,6 @@ const transformContentToFlatMap = (content, repoPath, metadata) => {
       });
     });
   }
-  // security report is no longer generated
   return allFiles;
 };
 
@@ -133,7 +126,6 @@ const DevOpsView = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // State to persist results
   const [result, setResult] = useState(() => {
     const saved = sessionStorage.getItem("devopsResult");
     return saved ? JSON.parse(saved) : null;
@@ -143,14 +135,11 @@ const DevOpsView = () => {
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Mermaid architecture diagram
   const [mermaidCode, setMermaidCode] = useState(null);
   const [mermaidLoading, setMermaidLoading] = useState(false);
 
-  // Tab state: 'files', 'architecture', 'metadata'
   const [activeTab, setActiveTab] = useState("files");
 
-  // Persist results
   useEffect(() => {
     if (result) {
       sessionStorage.setItem("devopsResult", JSON.stringify(result));
@@ -194,12 +183,10 @@ const DevOpsView = () => {
   setDrPlanMd(null);
 
     try {
-      // Generate DevOps files
       const data = await api.generateDevops(pathToGenerate);
       const resultWithRepoPath = { ...data, sourceRepoPath: pathToGenerate };
       setResult(resultWithRepoPath);
 
-      // Fetch architecture diagram
       setMermaidLoading(true);
       try {
         const archData = await api.getArchitectureMap(pathToGenerate);
@@ -287,10 +274,9 @@ const DevOpsView = () => {
 
   return (
     <div className="space-y-8 bg-gray-900 bg-[radial-gradient(#ffffff1a_1px,transparent_1px)] [background-size:32px_32px]">
-      {/* Header & Input Section */}
       <div className="p-6 bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700 rounded-xl shadow-2xl">
         <h1 className="text-3xl font-bold text-white mb-2">
-          🚀 DevOps File Generator & Architecture Visualizer
+          DevOps File Generator & Architecture Visualizer
         </h1>
         <p className="text-gray-400 mb-6">
           Select your project folder to generate DevOps scaffolding (Dockerfiles, docker-compose, GitHub Actions, 
@@ -329,7 +315,6 @@ const DevOpsView = () => {
         )}
       </div>
 
-      {/* Loading State */}
       {loading && (
         <div className="flex flex-col items-center justify-center p-10 bg-gray-800/50 rounded-lg backdrop-blur-sm">
           <Spinner size="lg" />
@@ -339,10 +324,8 @@ const DevOpsView = () => {
         </div>
       )}
 
-      {/* Results Section */}
       {result && !loading && Object.keys(files).length > 0 && (
         <div className="space-y-6">
-          {/* Tab Navigation */}
           <div className="flex space-x-2 bg-gray-800 p-2 rounded-lg border border-gray-700">
             {[
               { id: "files", label: "📄 Generated Files", icon: FileCode2 },
@@ -367,7 +350,6 @@ const DevOpsView = () => {
             })}
           </div>
 
-          {/* TAB: Generated Files */}
           {activeTab === "files" && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1">
@@ -412,7 +394,6 @@ const DevOpsView = () => {
             </div>
           )}
 
-          {/* TAB: Architecture Diagram */}
           {activeTab === "architecture" && (
             <Card className="p-6">
               <h2 className="text-xl font-bold text-white mb-4">System Architecture</h2>
@@ -430,7 +411,6 @@ const DevOpsView = () => {
             </Card>
           )}
 
-          {/* TAB: Metadata & Details */}
           {activeTab === "metadata" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                  {/* Quick vulnerability totals */}
@@ -442,7 +422,7 @@ const DevOpsView = () => {
                     <div className="text-sm text-gray-300">High vulnerabilities</div>
                   </div>
                 </div>
-              {/* Services Info */}
+
               <Card className="p-6">
                 <h3 className="text-lg font-bold text-white mb-4">Detected Services</h3>
                 {result.metadata && result.metadata.services ? (
@@ -460,7 +440,6 @@ const DevOpsView = () => {
                 )}
               </Card>
 
-              {/* Port Checks */}
               <Card className="p-6">
                 <h3 className="text-lg font-bold text-white mb-4">Port Availability</h3>
                 {result.metadata && result.metadata.portChecks ? (
@@ -480,7 +459,6 @@ const DevOpsView = () => {
                 )}
               </Card>
 
-              {/* Maintenance Score */}
               <Card className="p-6">
                 <h3 className="text-lg font-bold text-white mb-4">Maintenance Status</h3>
                 {result.metadata && result.metadata.maintenance ? (
@@ -504,7 +482,6 @@ const DevOpsView = () => {
                 )}
               </Card>
 
-              {/* Required Services */}
               <Card className="p-6">
                 <h3 className="text-lg font-bold text-white mb-4">Infrastructure</h3>
                 {result.metadata && result.metadata.requiredServices ? (
@@ -520,7 +497,7 @@ const DevOpsView = () => {
                   <p className="text-gray-400">No infrastructure data available</p>
                 )}
               </Card>
-              {/* Reports: Threat Model, DR and Security Report */}
+
               <div className="lg:col-span-2 space-y-4">
                 {/* Security report generation removed */}
                 <ReportCard title="Threat Model & Risk Report" markdown={threatModelMd} />
@@ -531,7 +508,6 @@ const DevOpsView = () => {
         </div>
       )}
 
-      {/* Empty State */}
       {!result && !loading && (
         <div className="flex flex-col items-center justify-center p-16 text-center text-gray-500">
           <Zap className="w-20 h-20 mb-4 opacity-50" />

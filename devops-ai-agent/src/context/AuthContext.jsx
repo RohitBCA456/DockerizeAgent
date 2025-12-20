@@ -1,6 +1,4 @@
-// AuthContext.jsx
-
-import React, { createContext, useState, useCallback, useEffect } from 'react'; // 1. Import useEffect
+import React, { createContext, useState, useCallback, useEffect } from 'react';
 import { api } from '../api';
 
 export const AuthContext = createContext();
@@ -17,11 +15,10 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       setUser(null);
     } finally {
-      setLoading(false); // Use finally to guarantee this runs
+      setLoading(false);
     }
   }, []);
 
-  // 2. Add this useEffect to run the check on app startup
   useEffect(() => {
     checkUser();
   }, [checkUser]);

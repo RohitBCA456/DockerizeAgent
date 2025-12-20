@@ -1,4 +1,3 @@
-// config/passport-setup.js
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { User } from "../model/user.model.js";

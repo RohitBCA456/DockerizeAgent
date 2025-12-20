@@ -18,12 +18,7 @@ function createMainWindow() {
     title: "DevOps Agent"
   });
 
-  // Load the React development server URL
-  // In a production build, you would load the built file: `mainWindow.loadFile('build/index.html')`
   mainWindow.loadURL('http://localhost:3000');
-
-  // Open DevTools automatically for debugging
-  // mainWindow.webContents.openDevTools();
 
   return mainWindow;
 }
@@ -31,9 +26,6 @@ function createMainWindow() {
 app.whenReady().then(() => {
   const mainWindow = createMainWindow();
 
-  // --- IPC Handlers for Secure Node.js Access ---
-
-  // 1. Handle Google Login Request
   ipcMain.on('login-google', () => {
     const authWindow = new BrowserWindow({
       width: 500,
@@ -46,14 +38,11 @@ app.whenReady().then(() => {
 
     authWindow.loadURL(`${BASE_URL}/auth/google`);
 
-    // When the auth window is closed by the backend's script,
-    // we assume login was successful and notify the main window.
     authWindow.on('closed', () => {
       mainWindow.webContents.send('auth-success');
     });
   });
 
-  // 2. Handle Folder Selection Dialog
   ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
       properties: ['openDirectory']
@@ -63,7 +52,6 @@ app.whenReady().then(() => {
     }
   });
 
-  // 3. Handle Opening Links in External Browser
   ipcMain.on('open-external-link', (event, url) => {
     shell.openExternal(url);
   });

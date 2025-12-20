@@ -5,7 +5,6 @@ import net from 'net';
 import { scanRepo } from './tools/repoScanner.js';
 import { runGitleaks, generateSBOM } from './securityTools.js';
 
-// Helper for Windows compatibility
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 function isPortInUse(port) {
@@ -25,12 +24,8 @@ export async function runPreflight(repoPath, options = { runGitleaks: false, run
     const metadata = scanRepo(repoPath);
     const results = { portChecks: [], audits: {}, maintenance: {} };
 
-  // 1. Port Detection & Check
   const guessedPorts = new Set();
-  // ... (Logic to scan files for ports as you had it)
-  // [Optimized Port Logic here]
 
-  // 2. Deterministic NPM Audit (The Fix)
   for (const [svcName, svc] of Object.entries(metadata.services)) {
     const pkgJson = path.join(svc.path, 'package.json');
     if (fs.existsSync(pkgJson)) {
@@ -48,7 +43,6 @@ export async function runPreflight(repoPath, options = { runGitleaks: false, run
     }
   }
 
-  // 3. Dependency Maintenance Score
   for (const [svcName, svc] of Object.entries(metadata.services)) {
     const proc = spawnSync(npmCmd, ['outdated', '--json'], { 
       cwd: svc.path, 
