@@ -251,8 +251,31 @@ app.post('/architecture-map', ensureAuthenticated, async (req, res) => {
   }
 });
 
+  /* ---------------- AVATAR PROXY (small secure proxy for remote avatars) ---------------- */
+  app.get('/avatar', async (req, res) => {
+    try {
+      const u = req.query.u;
+      if (!u) return res.status(400).send('missing');
+      // only allow a small set of trusted hostnames to avoid open proxy
+      const allowed = ['ui-avatars.com', 'lh3.googleusercontent.com', 'googleusercontent.com', 'avatars.githubusercontent.com'];
+      let url;
+      try { url = new URL(u); } catch (e) { return res.status(400).send('invalid url'); }
+      if (!allowed.some(h => url.hostname.includes(h))) return res.status(403).send('forbidden');
+
+      const resp = await fetch(url.toString(), { headers: { 'User-Agent': 'DevOpsAgent/1.0' } });
+      if (!resp.ok) return res.status(502).send('bad upstream');
+      const contentType = resp.headers.get('content-type') || 'application/octet-stream';
+      res.setHeader('Content-Type', contentType);
+      const buffer = Buffer.from(await resp.arrayBuffer());
+      res.send(buffer);
+    } catch (e) {
+      console.error('Avatar proxy error', e && e.message ? e.message : e);
+      res.status(500).send('error');
+    }
+  });
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, async () => {
   await connectDB();
-  console.log(`🚀 DevOps AI Agent Backend running at http://localhost:${PORT}`);
+  console.log(`DevOps AI Agent Backend running at http://localhost:${PORT}`);
 });
